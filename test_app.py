@@ -5,8 +5,10 @@ Run with either:
     python -m pytest -v
 """
 
+import io
 import random
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 
 from app import binary_search, is_sorted, lower_bound, main, upper_bound
 
@@ -77,22 +79,50 @@ class TestBinarySearch(unittest.TestCase):
 
 
 class TestCli(unittest.TestCase):
+    def _run(self, args):
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            code = main(args)
+        return code, out.getvalue(), err.getvalue()
+
     def test_hit_exit_code(self):
         self.assertEqual(main(["1 3 5 7 9", "7"]), 0)
 
     def test_miss_exit_code(self):
         self.assertEqual(main(["1 3 5 7 9", "4"]), 1)
 
-    def test_accepts_comma_separated_and_unsorted_input(self):
-        self.assertEqual(main(["9,3,1,7,5", "5"]), 0)
+    def test_accepts_comma_separated_sorted_input(self):
+        self.assertEqual(main(["1,3,5,7,9", "5"]), 0)
+
+    def test_unsorted_input_is_rejected_not_sorted(self):
+        """Issues #3 and #5: the CLI must honour the sorting precondition."""
+        code, _, err = self._run(["9,3,1,7,5", "5"])
+        self.assertEqual(code, 2)
+        self.assertIn("sorted", err.lower())
+
+    def test_index_refers_to_the_original_input(self):
+        """Issue #4: indices must refer to the caller's sequence."""
+        code, out, _ = self._run(["5 3 9 1", "3"])
+        self.assertEqual(code, 2)
+        self.assertNotIn("found at", out)
+
+    def test_index_of_first_element_is_zero(self):
+        code, out, _ = self._run(["10 20 30 40", "10"])
+        self.assertEqual(code, 0)
+        self.assertIn("index 0", out)
 
     def test_reports_duplicate_range(self):
-        self.assertEqual(main(["1 2 2 2 3", "2"]), 0)
+        code, out, _ = self._run(["1 2 2 2 3", "2"])
+        self.assertEqual(code, 0)
+        self.assertIn("indices 1..3", out)
 
     def test_usage_error_on_bad_args(self):
         self.assertEqual(main([]), 2)
         self.assertEqual(main(["1 2 3"]), 2)
         self.assertEqual(main(["1 2 three", "1"]), 2)
+
+    def test_empty_list_is_a_usage_error(self):
+        self.assertEqual(main(["", "1"]), 2)
 
 
 if __name__ == "__main__":

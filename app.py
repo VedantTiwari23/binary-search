@@ -7,6 +7,10 @@ it easy to reason about duplicates and insertion points.
 Every function here assumes ``arr`` is sorted in non-decreasing order. That is
 the one precondition binary search cannot check for cheaply, so it is verified
 once up front in the public helpers behind an ``ensure_sorted`` flag.
+
+The command line interface (:func:`main`) does not reorder the input. It
+validates the ordering precondition through ``ensure_sorted=True`` and reports
+indices into the sequence exactly as the caller supplied it.
 """
 
 from __future__ import annotations
@@ -133,7 +137,12 @@ def _parse_numbers(raw: str) -> List[int]:
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    """Command line entry point: ``python app.py "1 3 5 7 9" 7``."""
+    """Command line entry point: ``python app.py "1 3 5 7 9" 7``.
+
+    The list must already be sorted in non-decreasing order. Ordering is
+    validated through the public ``ensure_sorted`` flag rather than by sorting
+    the input, so reported indices always refer to the caller's own sequence.
+    """
     args = sys.argv[1:] if argv is None else argv
     if len(args) != 2:
         print(
@@ -143,13 +152,13 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 2
 
     try:
-        arr = sorted(_parse_numbers(args[0]))
+        arr = _parse_numbers(args[0])
         target = int(args[1])
+        index = binary_search(arr, target, ensure_sorted=True)
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
-    index = binary_search(arr, target)
     if index == -1:
         print(f"{target} not found in {arr}")
         return 1
